@@ -1,0 +1,13 @@
+digraph ProofTree {
+  // Force top-down layout
+  rankdir=BT;
+  node [shape=box];
+
+"(◇(□P₀∧¬P₀)∨□¬P₀)" -> "□¬P₀,◇(□P₀∧¬P₀)"[label=" ∨"] ; 
+"□¬P₀,◇(□P₀∧¬P₀)" -> "(□P₀∧¬P₀),◇(□P₀∧¬P₀),P₀"[label=" □"] ; 
+"(□P₀∧¬P₀),◇(□P₀∧¬P₀),P₀" -> "□P₀,◇(□P₀∧¬P₀),P₀"[label=" ⋀"] ; 
+"(□P₀∧¬P₀),◇(□P₀∧¬P₀),P₀" -> "¬P₀,P₀,◇(□P₀∧¬P₀)"[label=" ⋀"] ; 
+"□P₀,◇(□P₀∧¬P₀),P₀" -> "(□P₀∧¬P₀),◇(□P₀∧¬P₀),P₀"[label=" □"] ; 
+}
+
+\\ call with: dot -Tpng input.dot -o output.png
