@@ -22,12 +22,11 @@ universe u
 def T {α : Type} : Finset α → (CategoryTheory.Functor (Type u) (Type u)) :=
   λ Γ ↦ ⟨⟨λ X ↦ ((Γ.powerset × Γ.powerset × Multiset X) : Type u), by rintro X Y f ⟨Γ₁, Γ₂, A⟩; exact ⟨Γ₁, Γ₂, A.map f⟩⟩, by aesop_cat, by aesop_cat⟩
 
-
 def fₚ {Γ : Finset Formula} {X : Type u} (α : X → (T Γ).obj X) (x : X) : Finset Formula := (α x).1
 def fₙ {Γ : Finset Formula} {X : Type u} (α : X → (T Γ).obj X) (x : X) : Finset Formula := (α x).2.1
 def f {Γ : Finset Formula} {X : Type u} (α : X → (T Γ).obj X) (x : X)  : Finset Formula := fₚ α x ∪ fₙ α x
 def p {Γ : Finset Formula} {X : Type u} (α : X → (T Γ).obj X) (x : X)  : Multiset X := (α x).2.2
-
+def edge {Γ : Finset Formula} {X : Type u} (α : X → (T Γ).obj X) (x y : X) : Prop := y ∈ p α x
 
 -- def BotRule (fs : Finset Formula) := fs = {Formula.bottom}
 -- def LemRule (fs : Finset Formula) := ∃ (n : ℕ), fs = {Formula.atom n, Formula.neg_atom n}
@@ -52,7 +51,7 @@ structure InfiniteProof (Γ : Finset Formula) where
   X : Type u
   x : X
   α : X → (T Γ).obj X
-  r : ∀ (y : X), Relation.ReflTransGen (λ x y ↦ y ∈ (α x).2.2) x y
+  r : ∀ (y : X), Relation.ReflTransGen (edge α) x y
   h : ∀ (x : X),
         (fₚ α x = {Formula.bottom} ∧ p α x = {})
       ∨ (∃ (n : ℕ), fₚ α x = {Formula.atom n, Formula.neg_atom n} ∧ p α x = {}) -- (p α x).map (f α) has type Multiset (Finset Formula)
@@ -60,37 +59,52 @@ structure InfiniteProof (Γ : Finset Formula) where
       ∨ (∃ (A B : Formula), fₚ α x = {Formula.or A B} ∧ (p α x).map (f α) = {(fₚ α x) ∪ {A, B}})
       ∨ (∃ (A : Formula), fₚ α x = {Formula.box A} ∧ True ) -- the condition i wrote on ipad needs to go here
 
-def edge {Γ : Finset Formula} {𝕏 : InfiniteProof Γ} (x y : 𝕏.X) : Prop := y ∈ p 𝕏.α x
-
 instance {Γ : Finset Formula} (𝕏 : InfiniteProof Γ) : CategoryTheory.Endofunctor.Coalgebra (T Γ) where
   V := 𝕏.X
   str := 𝕏.α
 
 instance {Γ : Finset Formula} (𝕏 : InfiniteProof Γ) : Setoid 𝕏.X where
-  r x y := fₚ 𝕏.α x = fₚ 𝕏.α y ∧ fₙ 𝕏.α x = fₙ 𝕏.α y
+  r x y := (f 𝕏.α x = f 𝕏.α y ∧ Multiset.map (f 𝕏.α) (p 𝕏.α x) = Multiset.map (f 𝕏.α) (p 𝕏.α y))
   iseqv := ⟨by intro x; exact ⟨rfl, rfl⟩,
             by intro x y h; exact ⟨Eq.symm h.1, Eq.symm h.2⟩,
             by intro x y z h1 h2; exact ⟨Eq.trans h1.1 h2.1, Eq.trans h1.2 h2.2⟩⟩
+
+lemma mathlib? {α} {A B : Multiset α} : A ⊆ B ∧ B ⊆ A → A = B := by sorry
 
 noncomputable def Filtration {Γ : Finset Formula} (𝕐 : InfiniteProof Γ) : InfiniteProof Γ where
   X := Quotient (instSetoidX 𝕐)
   x := ⟦𝕐.x⟧
   α x := ((T Γ).map (fun (x : 𝕐.X) ↦ (⟦x⟧ : Quotient (instSetoidX 𝕐)))) (𝕐.α (Quotient.out x))
   r := by
-    have assump : @Quotient.out _ (instSetoidX 𝕐) ⟦𝕐.x⟧ = 𝕐.x := by sorry
+    have claim : ∀ (x y : 𝕐.X), (edge 𝕐.α) x y → (edge (fun x ↦ ((T Γ).map (fun (x : 𝕐.X) ↦ (⟦x⟧ : Quotient (instSetoidX 𝕐)))) (𝕐.α (Quotient.out x)))) ⟦x⟧ ⟦y⟧ := by
+      intro x y x_y
+      unfold edge at *
+      have suff : Multiset.map (fun x  ↦ (⟦x⟧ : Quotient (instSetoidX 𝕐))) (p 𝕐.α (@Quotient.out _ (instSetoidX 𝕐) ⟦x⟧)) = Multiset.map (fun x ↦ ⟦x⟧) (p 𝕐.α x) := by
+        refine mathlib? ⟨ Multiset.subset_iff.2 ?_,  Multiset.subset_iff.2 ?_⟩
+        · intro int h
+          have := (@Quotient.mk_out _ (instSetoidX 𝕐) x).2
+          have ⟨y', ⟨pf_1, pf_2⟩⟩ := Multiset.mem_map.1 h
+          apply Multiset.mem_map_of_mem (f 𝕐.α) at pf_1
+          rw [this] at pf_1
+          have ⟨y'', y''_pf1, y''_pf2⟩ := Multiset.mem_map.1 pf_1
+          apply Multiset.mem_map.2
+          refine ⟨y'', y''_pf1, ?_⟩
+          rw [←pf_2]
+          simp [instSetoidX, y''_pf2]
+          sorry -- ah, so close but this is not necessarily true
+        · sorry -- this follows from the proof above
+      simp only [p, T]
+      simp only [p] at suff
+      rw [suff]
+      apply Multiset.mem_map_of_mem
+      exact x_y
     intro y
     cases y using Quotient.inductionOn
     case h y =>
       induction 𝕐.r y
       case refl => exact Relation.ReflTransGen.refl
       case tail b y x_b b_y ih =>
-        apply Relation.ReflTransGen.tail ih
-        have := fun x ↦ @Quotient.mk_out _ (instSetoidX 𝕐) x
-    --   simp only [T, hyp]
-        simp only [T]
-        apply Multiset.mem_map_of_mem
-        convert b_y
-        sorry
+        apply Relation.ReflTransGen.tail ih (claim _ _ b_y)
   h := by
     intro x
     cases x using Quotient.inductionOn
@@ -98,16 +112,14 @@ noncomputable def Filtration {Γ : Finset Formula} (𝕐 : InfiniteProof Γ) : I
       have hyp := fun x ↦ @Quotient.mk_out _ (instSetoidX 𝕐) x
       have claim : f (fun x ↦ ((T Γ).map (fun (x : 𝕐.X) ↦ (⟦x⟧ : Quotient (instSetoidX 𝕐)))) (𝕐.α (Quotient.out x))) ∘ (fun x ↦ ⟦x⟧) = f 𝕐.α := by
         funext x
-        simp [f]
-        rw [←(hyp x).1, ←(hyp x).2]
-        simp [T, fₚ, fₙ]
+        rw [←(hyp x).1]
+        simp [T, f, fₚ, fₙ]
       have h := 𝕐.h (@Quotient.out _ (instSetoidX 𝕐) ⟦x⟧)
       rcases h with ⟨bot1, bot2⟩ | ⟨n, lem1, lem2⟩ | ⟨A, B, and1, and2⟩ | ⟨A, B, or1, or2⟩ | ⟨A, box1, box2⟩
       · apply Or.inl
         refine ⟨bot1, ?_⟩
         simp [p, T]
         exact bot2
-      --  exact bot2
       · refine Or.inr (Or.inl ⟨n, lem1, ?_⟩)
         simp [p, T]
         exact lem2
@@ -130,18 +142,12 @@ def InfiniteProof.Proves {Γ : Finset Formula} (𝕏 : InfiniteProof Γ) (Δ : F
 
 infixr:6 "⊢" => InfiniteProof.Proves
 
-
-
-
--- here we need to find a path downward from z to a root, which should always be possible. then we just search up from the root
 theorem Upwards_inductionOn {Γ : Finset Formula} {𝕏 : InfiniteProof Γ} z
     {motive : 𝕏.X → Prop}
     (root : motive 𝕏.x)
-    (step : (x : 𝕏.X) → motive x → ∀ {y}, (x_y : edge x y) → motive y)
+    (step : (x : 𝕏.X) → motive x → ∀ {y}, (x_y : edge 𝕏.α x y) → motive y)
     : motive z := by
   have x_z := 𝕏.r z
   induction x_z
   case refl => exact root
   case tail y z x_y y_z ih => exact step y ih y_z
-
--- should also be a downwards induction principal
