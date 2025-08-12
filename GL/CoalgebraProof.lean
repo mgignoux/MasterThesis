@@ -71,40 +71,29 @@ instance {Γ : Finset Formula} (𝕏 : InfiniteProof Γ) : Setoid 𝕏.X where
 
 lemma mathlib? {α} {A B : Multiset α} : A ⊆ B ∧ B ⊆ A → A = B := by sorry
 
+theorem Upwards_inductionOn {Γ : Finset Formula} {𝕏 : InfiniteProof Γ} z
+    {motive : 𝕏.X → Prop}
+    (root : motive 𝕏.x)
+    (step : (x : 𝕏.X) → motive x → ∀ {y}, (x_y : edge 𝕏.α x y) → motive y)
+    : motive z := by
+  have x_z := 𝕏.r z
+  induction x_z
+  case refl => exact root
+  case tail y z x_y y_z ih => exact step y ih y_z
+
+
 noncomputable def Filtration {Γ : Finset Formula} (𝕐 : InfiniteProof Γ) : InfiniteProof Γ where
   X := Quotient (instSetoidX 𝕐)
   x := ⟦𝕐.x⟧
   α x := ((T Γ).map (fun (x : 𝕐.X) ↦ (⟦x⟧ : Quotient (instSetoidX 𝕐)))) (𝕐.α (Quotient.out x))
   r := by
-    have claim : ∀ (x y : 𝕐.X), (edge 𝕐.α) x y → (edge (fun x ↦ ((T Γ).map (fun (x : 𝕐.X) ↦ (⟦x⟧ : Quotient (instSetoidX 𝕐)))) (𝕐.α (Quotient.out x)))) ⟦x⟧ ⟦y⟧ := by
-      intro x y x_y
-      unfold edge at *
-      have suff : Multiset.map (fun x  ↦ (⟦x⟧ : Quotient (instSetoidX 𝕐))) (p 𝕐.α (@Quotient.out _ (instSetoidX 𝕐) ⟦x⟧)) = Multiset.map (fun x ↦ ⟦x⟧) (p 𝕐.α x) := by
-        refine mathlib? ⟨ Multiset.subset_iff.2 ?_,  Multiset.subset_iff.2 ?_⟩
-        · intro int h
-          have := (@Quotient.mk_out _ (instSetoidX 𝕐) x).2
-          have ⟨y', ⟨pf_1, pf_2⟩⟩ := Multiset.mem_map.1 h
-          apply Multiset.mem_map_of_mem (f 𝕐.α) at pf_1
-          rw [this] at pf_1
-          have ⟨y'', y''_pf1, y''_pf2⟩ := Multiset.mem_map.1 pf_1
-          apply Multiset.mem_map.2
-          refine ⟨y'', y''_pf1, ?_⟩
-          rw [←pf_2]
-          simp [instSetoidX, y''_pf2]
-          sorry -- ah, so close but this is not necessarily true
-        · sorry -- this follows from the proof above
-      simp only [p, T]
-      simp only [p] at suff
-      rw [suff]
-      apply Multiset.mem_map_of_mem
-      exact x_y
     intro y
     cases y using Quotient.inductionOn
     case h y =>
-      induction 𝕐.r y
+      have := 𝕐.r y
+      induction this
       case refl => exact Relation.ReflTransGen.refl
-      case tail b y x_b b_y ih =>
-        apply Relation.ReflTransGen.tail ih (claim _ _ b_y)
+      case tail y z x_y y_z ih => sorry
   h := by
     intro x
     cases x using Quotient.inductionOn
@@ -141,13 +130,3 @@ instance {Γ : Finset Formula} (𝕏 : InfiniteProof Γ) : Finite (Filtration �
 def InfiniteProof.Proves {Γ : Finset Formula} (𝕏 : InfiniteProof Γ) (Δ : Finset Formula) : Prop := ∃ x : 𝕏.X, f 𝕏.α x = Δ
 
 infixr:6 "⊢" => InfiniteProof.Proves
-
-theorem Upwards_inductionOn {Γ : Finset Formula} {𝕏 : InfiniteProof Γ} z
-    {motive : 𝕏.X → Prop}
-    (root : motive 𝕏.x)
-    (step : (x : 𝕏.X) → motive x → ∀ {y}, (x_y : edge 𝕏.α x y) → motive y)
-    : motive z := by
-  have x_z := 𝕏.r z
-  induction x_z
-  case refl => exact root
-  case tail y z x_y y_z ih => exact step y ih y_z
