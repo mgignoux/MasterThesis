@@ -33,11 +33,17 @@ universe u
 @[simp] def T {α : Type} : Finset α → (CategoryTheory.Functor (Type u) (Type u)) :=
   λ Γ ↦ ⟨⟨λ X ↦ ((Γ.powerset × Γ.powerset × Multiset X) : Type u), by rintro X Y f ⟨Γ₁, Γ₂, A⟩; exact ⟨Γ₁, Γ₂, A.map f⟩⟩, by aesop_cat, by aesop_cat⟩
 
-def fₚ {Γ : Finset Formula} {X : Type u} (α : X → (T Γ).obj X) (x : X) : Finset Formula := (α x).1
-def fₙ {Γ : Finset Formula} {X : Type u} (α : X → (T Γ).obj X) (x : X) : Finset Formula := (α x).2.1
-def f {Γ : Finset Formula} {X : Type u} (α : X → (T Γ).obj X) (x : X)  : Finset Formula := fₚ α x ∪ fₙ α x
-def p {Γ : Finset Formula} {X : Type u} (α : X → (T Γ).obj X) (x : X)  : Multiset X := (α x).2.2
-def edge {Γ : Finset Formula} {X : Type u} (α : X → (T Γ).obj X) (x y : X) : Prop := y ∈ p α x
+def D (Γ : Finset Formula) : Finset Formula := Finset.filter Formula.isDiamond Γ ∪ Finset.filterMap Formula.opUnDi Γ (by
+  intro A B C C_in_A C_in_B
+  cases A <;> cases B
+  all_goals
+  simp_all [Formula.opUnDi])
+
+def fₚ {β} {Γ : Finset β} {X : Type u} (α : X → (T Γ).obj X) (x : X) : Finset β := (α x).1
+def fₙ {β} {Γ : Finset β} {X : Type u} (α : X → (T Γ).obj X) (x : X) : Finset β := (α x).2.1
+def f {β} [DecidableEq β] {Γ : Finset β} {X : Type u} (α : X → (T Γ).obj X) (x : X) : Finset β := fₚ α x ∪ fₙ α x
+def p {β} {Γ : Finset β} {X : Type u} (α : X → (T Γ).obj X) (x : X) : Multiset X := (α x).2.2
+def edge {β} {Γ : Finset β} {X : Type u} (α : X → (T Γ).obj X) (x y : X) : Prop := y ∈ p α x
 
 structure InfiniteProof (Γ : Finset Formula) where
   X : Type u
@@ -49,7 +55,7 @@ structure InfiniteProof (Γ : Finset Formula) where
       ∨ (∃ (n : ℕ), fₚ α x  = {Formula.atom n, Formula.neg_atom n} ∧ p α x = {})
       ∨ (∃ (A B : Formula), fₚ α x = {Formula.and A B} ∧ (p α x).map (f α) = {(fₙ α x) ∪ {A}, (fₙ α x) ∪ {B}})
       ∨ (∃ (A B : Formula), fₚ α x = {Formula.or A B} ∧ (p α x).map (f α) = {(fₙ α x) ∪ {A, B}})
-      ∨ (∃ (A : Formula), (fₚ α x : Finset _) = {Formula.box A} ∧ True ) -- the condition i wrote on ipad needs to go here
+      ∨ (∃ (A : Formula), (fₚ α x : Finset _) = {Formula.box A} ∧ (p α x).map (f α) = {D (fₙ α x) ∪ {A}} ) -- the condition i wrote on ipad needs to go here
 
 instance {Γ : Finset Formula} (𝕏 : InfiniteProof Γ) : CategoryTheory.Endofunctor.Coalgebra (T Γ) where
   V := 𝕏.X
@@ -79,12 +85,12 @@ def PointGenerated {Γ : Finset Formula} (𝕐 : InfiniteProof Γ) (x : 𝕐.X) 
       simp_all [fₙ, pg_alpha, p, Multiset.map_pmap]
       simp [←or2, f, fₚ, fₙ, pg_alpha, Multiset.pmap_eq_map]
     · refine Or.inr (Or.inr (Or.inr (Or.inr ⟨A, box1, ?_⟩)))
-      simp -- cant do this until we add the condition later
-
+      simp_all [fₙ, pg_alpha, p, Multiset.map_pmap]
+      simp [←box2, f, fₚ, fₙ, pg_alpha, Multiset.pmap_eq_map]
 
 /- FILTRATIONS -/
 
-instance {Γ : Finset Formula} (𝕏 : InfiniteProof Γ) : Setoid 𝕏.X where
+instance instSetoidX {Γ : Finset Formula} (𝕏 : InfiniteProof Γ) : Setoid 𝕏.X where
   r x y := f 𝕏.α x = f 𝕏.α y
   iseqv := ⟨by intro x; exact rfl,
             by intro x y h; exact Eq.symm h,
@@ -93,7 +99,7 @@ instance {Γ : Finset Formula} (𝕏 : InfiniteProof Γ) : Setoid 𝕏.X where
 @[simp] noncomputable def α_quot Γ 𝕐 (x : Quotient (instSetoidX 𝕐)) :=
   (T Γ).map (Quotient.mk (instSetoidX 𝕐)) (𝕐.α (Quotient.out x))
 
-noncomputable def Filtration {Γ : Finset Formula} (𝕐 : InfiniteProof Γ) : InfiniteProof Γ where
+noncomputable def InfiniteProof.Filtration {Γ : Finset Formula} (𝕐 : InfiniteProof Γ) : InfiniteProof Γ where
   X := Quotient (instSetoidX 𝕐)
   -- x := ⟦𝕐.x⟧
   α := α_quot Γ 𝕐
@@ -125,7 +131,10 @@ noncomputable def Filtration {Γ : Finset Formula} (𝕐 : InfiniteProof Γ) : I
         rw [←or2]
         apply congr_arg₂ Multiset.map claim rfl
       · refine Or.inr (Or.inr (Or.inr (Or.inr ⟨A, box1, ?_⟩)))
-        simp -- cant do this until we add the condition later
+        simp only [fₙ, α_quot, T, f, p, Multiset.map_map]
+        simp only [fₙ] at box2
+        rw [←box2]
+        apply congr_arg₂ Multiset.map claim rfl
 
 /- SMALL MODEL PROPERTY -/
 

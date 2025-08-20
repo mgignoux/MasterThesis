@@ -38,6 +38,21 @@ def Formula.isNegAtomic : Formula -> Prop
   | `·_ => true
   | _ => false
 
+def Formula.isDiamond : Formula -> Prop
+  | ◇_ => true
+  | _ => false
+
+def Formula.opUnDi (A : Formula) : Option Formula := match A with
+  | ◇ B => Option.some B
+  | _ => none
+
+def Formula.unDi (A : Formula) (h : A.isDiamond) : Formula := match A with
+  | ◇ B => B
+
+def Formula.isBox : Formula -> Prop
+  | □_ => true
+  | _ => false
+
 instance : DecidablePred Formula.isAtomic := by
   intro A
   cases A <;> simp [Formula.isAtomic]
@@ -60,6 +75,30 @@ instance : DecidablePred Formula.isNegAtomic := by
   · apply Decidable.isFalse; simp
   · apply Decidable.isFalse; simp
   · apply Decidable.isFalse; simp
+  · apply Decidable.isFalse; simp
+
+instance : DecidablePred Formula.isDiamond := by
+  intro A
+  cases A <;> simp [Formula.isDiamond]
+  · apply Decidable.isFalse; simp
+  · apply Decidable.isFalse; simp
+  · apply Decidable.isFalse; simp
+  · apply Decidable.isFalse; simp
+  · apply Decidable.isFalse; simp
+  · apply Decidable.isFalse; simp
+  · apply Decidable.isFalse; simp
+  · apply Decidable.isTrue;  simp
+
+instance : DecidablePred Formula.isBox := by
+  intro A
+  cases A <;> simp [Formula.isBox]
+  · apply Decidable.isFalse; simp
+  · apply Decidable.isFalse; simp
+  · apply Decidable.isFalse; simp
+  · apply Decidable.isFalse; simp
+  · apply Decidable.isFalse; simp
+  · apply Decidable.isFalse; simp
+  · apply Decidable.isTrue;  simp
   · apply Decidable.isFalse; simp
 
 def Formula.neg : Formula → Formula
