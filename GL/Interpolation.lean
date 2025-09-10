@@ -49,32 +49,15 @@ def shift_down (k : Nat) : Formula → Formula := full (λ n ↦ at (n - k))
 namespace split
 
 def equation (𝕏 : GLSplitProof) {n : Nat} (bij : 𝕏.X ≃ Fin n) (x : 𝕏.X) : Formula := match r 𝕏.α x with
-  | ⟨"topₗ", _⟩ => ⊥
-  | ⟨"topᵣ", _⟩ => ⊤
-  | ⟨"axₗₗ", _⟩ => ⊥
-  | ⟨"axᵣᵣ", _⟩ => ⊤ -- these are all of the easy cases
-  | ⟨"axₗᵣ", _⟩ => ⊤ -- match (fₚ 𝕏.α x).val with .. ?
-  | _ => ⊥
-
-
-
-#check ({1, 2} : Finset Nat)
-
-
-def get_n (A: Finset Nat) (h : ∃ n, A = {n}) : Nat :=
-  A.min' (by
-    have g : A.card = 1 := by
-      have ⟨h1, h2⟩ := h
-      subst h2
-      simp
-    by_contra con
-    simp at con
-    subst con
-    simp_all
-   )
-
-def get_n' (A: Finset Formula) (h : ∃ n, A = {at n}) : Nat := -- the actual value of n.
-  by sorry
-
-def get_n'' (𝕏 : GLSplitProof) (x : 𝕏.X) (h : ∃ n, fₚ 𝕏.α x = {Sum.inl (at n), Sum.inr (na n)}) : Nat :=
-  by sorry
+  | RuleApp.topₗ => ⊥
+  | RuleApp.topᵣ => ⊤
+  | RuleApp.axₗₗ _ => ⊥
+  | RuleApp.axₗᵣ k => na (k + n) -- probably shift this up by n to avoid issues later
+  | RuleApp.axᵣₗ k => at (k + n)
+  | RuleApp.axᵣᵣ _ => ⊤
+  | RuleApp.orₗ A B => at (bij.toFun (by sorry))
+  | RuleApp.orᵣ A B => by sorry
+  | RuleApp.andₗ A B => by sorry
+  | RuleApp.andᵣ A B => by sorry
+  | RuleApp.boxₗ A => by sorry
+  | RuleApp.boxᵣ A => by sorry
