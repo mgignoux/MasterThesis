@@ -20,7 +20,13 @@ inductive Formula : Type
   | diamond : Formula → Formula
 deriving Repr,DecidableEq
 
+def Sequent := Finset Formula
+deriving Union, Singleton, SDiff, Membership, PartialOrder, EmptyCollection, HasSubset
+
+instance : OrderBot Sequent := Finset.instOrderBot
+
 namespace Formula
+
 prefix:70 "at" => atom
 prefix:70 "na" => neg_atom
 prefix:70 "□" => box
@@ -139,8 +145,6 @@ def pp_form : Formula → String
   | □ A => "□" ++ pp_form A
   | ◇ A => "◇" ++ pp_form A
 
-def Sequent := Finset Formula
-
 unsafe def pp_forms (Γ : Sequent) : String :=
   String.intercalate "," ((Quot.unquot Γ.val).map pp_form)
 
@@ -164,9 +168,55 @@ def vocab : Formula → Finset Nat
   | □ A => vocab A
   | ◇ A => vocab A
 
-namespace sequent
+  /-- Get a fresh atomic proposition `x` not occuring in `A`. -/
+  def freshVar : Formula → Nat
+    | ⊤  => 0
+    | ⊥  => 0
+    | at n  => n + 1
+    | na n  => n + 1
+    | A & B  => max (freshVar A) (freshVar B)
+    | A v B  =>  max (freshVar A) (freshVar B)
+    | □ A  => freshVar A
+    | ◇ A  => freshVar A
 
-def vocab (Γ : Finset Formula) : Finset Nat := Finset.biUnion Γ Formula.vocab
+end Formula
+namespace Sequent
+
+def size (Γ : Sequent) : Nat := Finset.sum Γ Formula.size
+def size_without_diamond (Γ : Sequent) : Nat := Finset.sum (Γ.filter (λ A ↦ ¬ (Formula.isDiamond A))) Formula.size
+
+lemma jfef {n m l : Nat} : n + m = l → n = l - m := by
+intro a
+subst a
+simp_all only [add_tsub_cancel_right]
+
+lemma efef {Γ Δ : Sequent} : {A ∈ Γ \ Δ | ¬A.isDiamond} = {A ∈ Γ | ¬A.isDiamond} \ {A ∈ Δ | ¬A.isDiamond} := by sorry
+
+
+
+theorem size_wod_sdiff {Γ Δ : Sequent} (h : Δ ⊆ Γ) : size_without_diamond (Γ \ Δ) = size_without_diamond Γ - size_without_diamond Δ := by
+  have this := @Finset.sum_sdiff _ _ _ _ _ Formula.size _ (Finset.filter_subset_filter (λ A ↦ ¬ (Formula.isDiamond A)) h)
+  have := jfef $ this
+  simp only [size_without_diamond]
+  rw [←this]
+  have := @efef Γ Δ
+  sorry
+
+
+
+
+theorem size_wod_disjoint {Γ Δ : Sequent} :
+  Disjoint Γ Δ → size_without_diamond (Γ ∪ Δ)
+        = size_without_diamond Γ + size_without_diamond Δ := by
+  intro dis
+  have dis_diamond : Disjoint (Γ.filter (λ A ↦ ¬ (Formula.isDiamond A))) (Δ.filter (λ A ↦ ¬ (Formula.isDiamond A))):= by
+    simp_all [Disjoint]
+    intro Τ Τ_Γ' Τ_Δ'
+    exact @dis Τ (Finset.Subset.trans Τ_Γ' (Finset.filter_subset _ _)) (Finset.Subset.trans Τ_Δ' (Finset.filter_subset _ _))
+  simp only [size_without_diamond, Finset.filter_union (λ A ↦ ¬ (Formula.isDiamond A)) Γ Δ]
+  exact Finset.sum_union dis_diamond
+
+def vocab (Γ : Sequent) : Finset Nat := Finset.biUnion Γ Formula.vocab
 
 def FLClosed (Γ : Sequent) : Prop := by unfold Sequent at Γ; exact
   ∀ A ∈ Γ, match A with
@@ -178,3 +228,8 @@ def FLClosed (Γ : Sequent) : Prop := by unfold Sequent at Γ; exact
     | A v B => A ∈ Γ ∧ B ∈ Γ
     | □ A => A ∈ Γ
     | ◇ A => A ∈ Γ
+
+def freshVar (Γ : Finset Formula) : Nat :=
+  if h : Γ = {} then 0 else Finset.max' (Γ.image (Formula.freshVar)) (by
+    by_contra con
+    simp_all)
