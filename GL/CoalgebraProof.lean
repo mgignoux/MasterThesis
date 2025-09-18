@@ -12,6 +12,7 @@ import Mathlib.Tactic
 import Mathlib.Data.Setoid.Partition
 import Mathlib.Data.Finset.Lattice.Basic
 
+
 instance {α} [DecidableEq α] (Γ : Finset α) : Union {x // x ∈ Γ.powerset} where -- mathlib ????
   union A B := ⟨A ∪ B, by
     apply Finset.mem_powerset.2
@@ -47,11 +48,19 @@ inductive RuleApp
 @[simp] def T : (CategoryTheory.Functor (Type u) (Type u)) :=
   ⟨⟨λ X ↦ ((RuleApp × List X) : Type u), by rintro X Y f ⟨r, A⟩; exact ⟨r, A.map f⟩⟩, by aesop_cat, by aesop_cat⟩
 
-def D (Γ : Finset Formula) : Finset Formula := Finset.filter Formula.isDiamond Γ ∪ Finset.filterMap Formula.opUnDi Γ (by
+def D (Γ : Sequent) : Sequent := Finset.filter Formula.isDiamond Γ ∪ Finset.filterMap Formula.opUnDi Γ (by
   intro A B C C_in_A C_in_B
   cases A <;> cases B
   all_goals
   simp_all [Formula.opUnDi])
+
+lemma Sequent.D_size_wod_leq_size_wod (Γ : Sequent) : (D Γ).size_without_diamond ≤ Γ.size_without_diamond := by
+  induction Γ using Finset.induction
+  case empty => simp [D]
+  case insert A Δ A_ni ih =>
+    have dis : Disjoint {A} Δ := Finset.disjoint_singleton_left.2 A_ni
+    simp only [Finset.insert_eq, size_wod_disjoint dis]
+    sorry -- very doable just annoying
 
 def fₚ : RuleApp → Finset Formula
   | RuleApp.top _ _ => {⊤}
@@ -279,18 +288,13 @@ theorem box_subproof (𝕏 : GLProof) (x : 𝕏.X) (A : Formula) (Δ : Finset Fo
     | [y,z] => by exfalso; simp [p_def] at this
     | y :: z :: x :: xs => by exfalso; simp [p_def] at this
 
-theorem weakening_helper (Γ : Finset Formula) (A B C : Formula) (A_ne : (B & C) ≠ A) :  Γ \ {B&C} ∪ ({B} ∪ {A}) = (Γ ∪ {A}) \ {B&C} ∪ {B} ∧ Γ \ {B&C} ∪ ({C} ∪ {A}) = (Γ ∪ {A}) \ {B&C} ∪ {C} := by
-  refine ⟨?_, ?_⟩
-  · simp [Finset.union_sdiff_distrib]
-    have h : {A} \ {B&C} = ({A} : Finset Formula) := by simp_all;
-    have h2 : {A} ∪ {B} = {B} ∪ ({A} : Finset Formula) := by simp [Finset.union_comm]
-    simp [h, h2]
-  · simp [Finset.union_sdiff_distrib]
-    have h : {A} \ {B&C} = ({A} : Finset Formula) := by simp_all;
-    have h2 : {A} ∪ {C} = {C} ∪ ({A} : Finset Formula) := by simp [Finset.union_comm]
-    simp [h, h2]
+theorem weakening_helper {Γ : Finset Formula} {A B D : Formula} (A_ne : D ≠ A) :  Γ \ {D} ∪ ({B} ∪ {A}) = (Γ ∪ {A}) \ {D} ∪ {B} := by
+  simp [Finset.union_sdiff_distrib]
+  have h1 : {A} \ {D} = ({A} : Finset Formula) := by simp_all;
+  have h2 : {A} ∪ {B} = {B} ∪ ({A} : Finset Formula) := by simp [Finset.union_comm]
+  simp [h1, h2]
 
--- lemma jfewi (n m k : Nat) : n ≤ m → n + k ≤ m + k := by simp?
+
 theorem weakening (A : Formula) (Δ : Finset Formula) : (∃ 𝕏, 𝕏 ⊢ Δ) → (∃ 𝕏, 𝕏 ⊢ Δ ∪ {A}) := by
   intro ⟨𝕏, x, x_Δ⟩
   by_cases A ∈ Δ
@@ -407,11 +411,13 @@ theorem weakening (A : Formula) (Δ : Finset Formula) : (∃ 𝕏, 𝕏 ⊢ Δ) 
             simp [p, pfl, pfr]
             cases r_defl : (𝕐l.α yl).1 <;> cases r_defr : (𝕐r.α yr).1 <;> simp only [fₙ_alternate]
             all_goals
-              apply weakening_helper
-              intro con
-              apply A_ni
-              rw [con] at and_in
-              exact and_in}
+              constructor
+              all_goals
+                apply weakening_helper
+                intro con
+                apply A_ni
+                rw [con] at and_in
+                exact and_in}
       use Sum.inr (Sum.inr ())
       simp [f, r]
     case or => sorry
@@ -423,7 +429,17 @@ theorem weakening (A : Formula) (Δ : Finset Formula) : (∃ 𝕏, 𝕏 ⊢ Δ) 
         cases A <;> simp [Formula.isDiamond] at A_di
         case diamond B =>
           have ⟨𝕐, y, pf⟩ := weakening B (D (fₙ (r 𝕏.α x)) ∪ {C, ◇ B}) (by
+            have for_termination : Sequent.size_without_diamond (D (fₙ (r 𝕏.α x)) ∪ {C}) < Sequent.size_without_diamond (f (r 𝕏.α x)) := by
+              calc
+                _ ≤ Sequent.size_without_diamond ((fₙ (r 𝕏.α x)) ∪ {C}) := by
+                  have := Sequent.D_size_wod_leq_size_wod (fₙ (r 𝕏.α x))
+                  sorry
+
+                _ < Sequent.size_without_diamond (f (r 𝕏.α x)) := by
+                  simp [rule, f, fₙ_alternate]
+                  sorry
             have ⟨𝕐, y, pf⟩ := weakening (◇ B) (D (fₙ (r 𝕏.α x)) ∪ {C}) (by use 𝕏; convert (box_subproof 𝕏 x C Γ box_in rule); simp [fₙ, rule, f, fₚ]) -- put in seperate theorem
+            clear for_termination
             refine ⟨𝕐, y, ?_⟩
             · have h : ({C} : Finset Formula) ∪ {◇ B} = {C, ◇ B} := by aesop
               simp only [pf, ←h, Finset.union_assoc])
@@ -447,12 +463,16 @@ theorem weakening (A : Formula) (Δ : Finset Formula) : (∃ 𝕏, 𝕏 ⊢ Δ) 
                 constructor
                 · aesop
                 · intro mpp
-                  sorry -- Doable!
-
-                -- (D (Γ \ {□C})) ∪ {C} = D ((Γ ∪ {◇A}) \ {□C}) ∪ {C}
-                 -- D (Γ \ {□C}) ∪ {C, ◇B} ∪ {B} = D ((Γ ∪ {◇B}) \ {□C}) ∪ {C}
-
-                  }
+                  rcases mpp with ⟨⟨c1, c2⟩, c3⟩ | ⟨c1, ⟨c2, c3⟩, c4⟩ | c
+                  · rcases c1 with c1 | c1
+                    · exact Or.inr (Or.inl ⟨⟨c1, c2⟩, c3⟩)
+                    · exact Or.inr (Or.inr (Or.inr (Or.inl c1)))
+                  · rcases c2 with c2 | c2
+                    · exact Or.inr (Or.inr (Or.inl ⟨c1, ⟨c2, c3⟩, c4⟩))
+                    · subst c2
+                      simp [Formula.opUnDi] at c4
+                      exact Or.inr (Or.inr (Or.inr (Or.inr (Eq.symm c4))))
+                  · exact Or.inl c }
           use Sum.inr ()
           simp [f, r]
       case neg A_nd =>  -- just look up one and dont even recurse
@@ -488,8 +508,7 @@ theorem weakening (A : Formula) (Δ : Finset Formula) : (∃ 𝕏, 𝕏 ⊢ Δ) 
                       · subst c4 c2
                         exfalso
                         simp [Formula.isDiamond] at A_nd
-              · rfl
-                      }
+              · rfl }
         use Sum.inr ()
         simp [f, r]
 termination_by (Formula.size A, Sequent.size_without_diamond Δ) -- Sequent.size_without_diamond
@@ -501,61 +520,136 @@ decreasing_by
     subst x_Δ
     apply Prod.Lex.right _ for_term2
   · apply Prod.Lex.right _
-    sorry -- hmm is this where we need sequent size to not count diamonds
+    subst x_Δ
+    exact for_termination
   · rename_i eq
     subst eq
     apply Prod.Lex.left
     simp [Formula.size]
 
+lemma helper {A B : Formula} : {A, ~A} ∪ {~B} = {A&B, ~A, ~B} \ {A&B} ∪ ({A} : Sequent) := by
+  ext C
+  simp
+  apply Iff.intro
+  · intro a
+    cases a with
+    | inl h =>
+      subst h
+      simp_all only [or_true]
+    | inr h_1 =>
+      cases h_1 with
+      | inl h =>
+        subst h
+        simp_all only [true_or, or_true, true_and]
+        left
+        have := Decidable.decide ((~A) = (A&B))
+        sorry -- why doesnt this work??? ohhhhh because ~ is not apart of the language, no that shouldn't matter we still have decidableEq for formulas
+      | inr h_2 =>
+        subst h_2
+        simp_all only [or_true, true_and]
+        sorry
+  · intro a
+    cases a with
+    | inl h =>
+      obtain ⟨left, right⟩ := h
+      simp_all only [false_or, or_true]
+    | inr h_1 =>
+      subst h_1
+      simp_all only [true_or]
+
+
+
+
 theorem extended_lem (A : Formula) : ∃ (𝕏 : GLProof), 𝕏 ⊢ {A, ~A} := by
-  sorry -- OLD VERSION BELOW
-  -- induction A <;> simp only [Formula.neg]
-  -- case bottom =>
-  --   use {
-  --     X := Unit
-  --     α x := ⟨RuleApp.top, {⊥}, {}⟩ -- : RuleApp × Finset Formula × Multiset X
-  --     h := by aesop}
-  --   use ()
-  --   simp [f, fₚ, fₙ, r]
-  --   aesop
-  -- case top =>
-  --   use {
-  --     X := Unit
-  --     α x := ⟨RuleApp.top, {⊥}, {}⟩ -- : RuleApp × Finset Formula × Multiset X
-  --     h := by aesop}
-  --   use ()
-  --   simp [f, fₚ, fₙ, r]
-  --   aesop
-  -- case atom n =>
-  --   use {
-  --     X := Unit
-  --     α x := ⟨RuleApp.ax n, {}, {}⟩ -- : RuleApp × Finset Formula × Multiset X
-  --     h := by aesop}
-  --   use ()
-  --   simp [f, fₚ, fₙ, r]
-  -- case neg_atom n =>
-  --   use {
-  --     X := Unit
-  --     α x := ⟨RuleApp.ax n, {}, {}⟩ -- : RuleApp × Finset Formula × Multiset X
-  --     h := by aesop}
-  --   use ()
-  --   simp [f, fₚ, fₙ, r]
-  --   aesop
-  -- case and A B ihA ihB =>
-  --   have ⟨𝕏, x, x_A⟩ := weakening (~B) {A,~A} ihA
-  --   have ⟨𝕐, y, y_B⟩ := weakening (~A) {B,~B} ihB
-  --   let X := 𝕏.X ⊕ 𝕐.X ⊕ Fin 2 -- prob need like 2 things here
-  --   let α : X → T.obj X  -- : RuleApp × Finset Formula × Multiset X
-  --     | Sum.inl x => T.map (Sum.inl) (𝕏.α x)
-  --     | Sum.inr (Sum.inl x) => T.map (Sum.inr ∘ Sum.inl) (𝕐.α x)
-  --     | Sum.inr (Sum.inr 0) => ⟨RuleApp.or (~A) (~B), {A & B}, {Sum.inr $ Sum.inr 1}⟩
-  --     | Sum.inr (Sum.inr 1) => ⟨RuleApp.and A B, {~A,~B}, {Sum.inl x, Sum.inr $ Sum.inl y}⟩
-  --   use ⟨X, α, by sorry⟩
-  --   use Sum.inr (Sum.inr 0)
-  --   simp [f, fₚ, r, α, fₙ]
-  --   aesop
-  -- all_goals
-  --   sorry
+  induction A <;> simp only [Formula.neg]
+  case bottom =>
+    use {
+      X := Unit
+      α x := ⟨RuleApp.top {⊥,⊤} (by simp), {}⟩ -- : RuleApp × Finset Formula × Multiset X
+      h := by aesop}
+    use ()
+    simp [r, f]
+    rfl
+  case top =>
+    use {
+      X := Unit
+      α x := ⟨RuleApp.top {⊤,⊥} (by simp), {}⟩ -- : RuleApp × Finset Formula × Multiset X
+      h := by aesop}
+    use ()
+    simp [r, f]
+    rfl
+  case atom n =>
+    use {
+      X := Unit
+      α x := ⟨RuleApp.ax {at n, na n} n (by simp), {}⟩ -- : RuleApp × Finset Formula × Multiset X
+      h := by aesop}
+    use ()
+    simp [r, f]
+  case neg_atom n =>
+    use {
+      X := Unit
+      α x := ⟨RuleApp.ax {na n, at n} n (by simp), {}⟩ -- : RuleApp × Finset Formula × Multiset X
+      h := by aesop}
+    use ()
+    simp [r, f]
+  case and A B ihA ihB =>
+    have ⟨𝕏, x, x_A⟩ := weakening (~B) {A,~A} ihA
+    have ⟨𝕐, y, y_B⟩ := weakening (~A) {B,~B} ihB
+    let X := 𝕏.X ⊕ 𝕐.X ⊕ Bool -- prob need like 2 things here
+    let α : X → T.obj X  -- : RuleApp × Finset Formula × Multiset X
+      | Sum.inl x => T.map (Sum.inl) (𝕏.α x)
+      | Sum.inr (Sum.inl x) => T.map (Sum.inr ∘ Sum.inl) (𝕐.α x)
+      | Sum.inr (Sum.inr false) => ⟨RuleApp.or {A & B, (~A) v (~B)} (~A) (~B) (by simp), [Sum.inr $ Sum.inr true]⟩
+      | Sum.inr (Sum.inr true) => ⟨RuleApp.and {A & B, (~A), (~B)} A B (by simp), [Sum.inl x, Sum.inr $ Sum.inl y]⟩
+    use ⟨X, α, by
+      intro x
+      rcases x with x1 | x2 | x3
+      · simp [r, α]
+        have := 𝕏.h x1
+        cases r_def : (𝕏.α x1).1 <;> simp_all [r, p]
+        · convert this
+      · simp [r, α]
+        have := 𝕐.h x2
+        cases r_def : (𝕐.α x2).1 <;> simp_all [r, p]
+        · convert this
+      · cases x3
+        · simp only [α, r, p, fₙ_alternate, List.map_singleton, f, List.cons.injEq, and_true]
+          aesop
+        · simp_all only [r, α]
+          simp only [T, p, List.map_cons, x_A, y_B,
+            List.map_nil, List.cons.injEq, and_true]
+          cases r_defl : (𝕏.α x).1 <;> cases r_defr : (𝕐.α y).1 <;> simp only [fₙ_alternate]
+          all_goals
+            sorry -- this is super easy we just want to solve it neatly
+            ⟩
+    use Sum.inr (Sum.inr false)
+    simp [r, f, α]
+  case or A B ihA ihB => -- see case above
+    sorry
+  case box A ihA =>
+    have ⟨𝕏, x, x_A⟩ := weakening (◇A) {A,~A} ihA
+    let X := 𝕏.X ⊕ Unit
+    let α : X → T.obj X  -- : RuleApp × Finset Formula × Multiset X
+      | Sum.inl x => T.map (Sum.inl) (𝕏.α x)
+      | Sum.inr z => ⟨RuleApp.box {□A, ◇(~A)} A (by simp), [Sum.inl x]⟩
+    use ⟨X, α, by
+      intro x
+      rcases x with x1 | x2
+      · simp [r, α]
+        have := 𝕏.h x1
+        cases r_def : (𝕏.α x1).1 <;> simp_all [r, p]
+        · convert this
+      · simp_all only [r, α]
+        simp only [T, p, List.map_cons, x_A,
+          List.map_nil, List.cons.injEq, and_true]
+        cases r_defl : (𝕏.α x).1 <;> simp only [fₙ_alternate]
+        all_goals
+          sorry -- want to solve this neatly
+      ⟩
+    use Sum.inr ()
+    simp [r, f, α]
+  all_goals
+    sorry
 
 
 -- instance instSetoid_equiv : Setoid Formula where
