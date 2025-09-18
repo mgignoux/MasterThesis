@@ -20,10 +20,7 @@ inductive Formula : Type
   | diamond : Formula → Formula
 deriving Repr,DecidableEq
 
-def Sequent := Finset Formula
-deriving Union, Singleton, SDiff, Membership, PartialOrder, EmptyCollection, HasSubset
-
-instance : OrderBot Sequent := Finset.instOrderBot
+abbrev Sequent := Finset Formula
 
 namespace Formula
 
@@ -108,7 +105,7 @@ instance : DecidablePred isBox := by
   · apply Decidable.isTrue;  simp
   · apply Decidable.isFalse; simp
 
-def neg : Formula → Formula
+@[simp] def neg : Formula → Formula
   | ⊥ => ⊤
   | ⊤ => ⊥
   | at n => na n
@@ -118,9 +115,35 @@ def neg : Formula → Formula
   | □ A => ◇ (neg A)
   | ◇ A => □ (neg A)
 
-prefix:5 "~" => Formula.neg
+
+prefix:50 "~" => Formula.neg
 notation:55 φ:56 " ↣ " ψ:55 => (¬ φ) ∨ ψ
 notation:55 φ:56 " ⟷ " ψ:55 => (φ ↣ ψ) & (ψ ↣ φ)
+
+def instDecidableNeg (A B : Formula) : Decidable ((~A) = B) := by
+  by_cases (~A) = B
+  case pos eq => apply Decidable.isTrue; simp [eq]
+  case neg ne => apply Decidable.isFalse; exact ne
+  -- rcases A with _ | _ | n | n | ⟨A₁, A₂⟩ | ⟨A₁, A₂⟩ | A | A <;> rcases B with _ | _ | k | k | ⟨B₁, B₂⟩ | ⟨B₁, B₂⟩ | B | B
+  -- any_goals (solve | apply Decidable.isTrue; rfl)
+  -- any_goals (solve | apply Decidable.isFalse; simp)
+  -- · by_cases n = k
+  --   case pos eq => apply Decidable.isTrue; subst eq; rfl
+  --   case neg ne => apply Decidable.isFalse; simp; exact ne
+  -- · by_cases n = k
+  --   case pos eq => apply Decidable.isTrue; subst eq; rfl
+  --   case neg ne => apply Decidable.isFalse; simp; exact ne
+  -- · by_cases (~A₁) = B₁ ∧ (~A₂) = B₂
+  --   case pos eq => apply Decidable.isTrue; simp [eq]
+  --   case neg ne => apply Decidable.isFalse; simp only [neg, or.injEq]; exact ne
+
+
+
+
+
+
+
+
 
 def P := at 0
 def Q := at 1
@@ -185,25 +208,30 @@ namespace Sequent
 def size (Γ : Sequent) : Nat := Finset.sum Γ Formula.size
 def size_without_diamond (Γ : Sequent) : Nat := Finset.sum (Γ.filter (λ A ↦ ¬ (Formula.isDiamond A))) Formula.size
 
+/-- Delete me! -/
 lemma jfef {n m l : Nat} : n + m = l → n = l - m := by
 intro a
 subst a
 simp_all only [add_tsub_cancel_right]
 
-lemma efef {Γ Δ : Sequent} : {A ∈ Γ \ Δ | ¬A.isDiamond} = {A ∈ Γ | ¬A.isDiamond} \ {A ∈ Δ | ¬A.isDiamond} := by sorry
-
-
+/-- I should be in Mathlib! -/
+lemma Finset.filter_sdiff {Γ Δ : Sequent} : (Γ \ Δ).filter (λ A ↦ ¬ (Formula.isDiamond A)) = Γ.filter (λ A ↦ ¬ (Formula.isDiamond A)) \ Δ.filter (λ A ↦ ¬ (Formula.isDiamond A)) := by
+  apply Finset.ext
+  intro A
+  simp
+  constructor
+  · intro ⟨⟨A_in_Γ, A_ni_Δ⟩, A_di⟩
+    exact ⟨⟨A_in_Γ, A_di⟩, fun x ↦ by exfalso; exact A_ni_Δ x⟩
+  · intro ⟨⟨A_in_Γ, A_di⟩, mp⟩
+    refine ⟨⟨A_in_Γ, fun x ↦ by exfalso; exact A_di (mp x)⟩, A_di⟩
 
 theorem size_wod_sdiff {Γ Δ : Sequent} (h : Δ ⊆ Γ) : size_without_diamond (Γ \ Δ) = size_without_diamond Γ - size_without_diamond Δ := by
   have this := @Finset.sum_sdiff _ _ _ _ _ Formula.size _ (Finset.filter_subset_filter (λ A ↦ ¬ (Formula.isDiamond A)) h)
-  have := jfef $ this
+  have := jfef this
   simp only [size_without_diamond]
   rw [←this]
-  have := @efef Γ Δ
-  sorry
-
-
-
+  have := @ Finset.filter_sdiff Γ Δ
+  simp [this]
 
 theorem size_wod_disjoint {Γ Δ : Sequent} :
   Disjoint Γ Δ → size_without_diamond (Γ ∪ Δ)
